@@ -1,8 +1,8 @@
-package com.mchange.sc.v1.democognos.dbutil;
+package com.mchange.sc.v1.superflex;
 
 import java.io.BufferedReader;
 import scala.collection._;
-import com.mchange.sc.v1.democognos.dbutil.SuperFlexDbArchiver.{Key,MetaData};
+import com.mchange.sc.v1.superflex.SuperFlexDbArchiver.{Key,MetaData};
 
 abstract class SingleHeaderLineCsvArchiver extends SuperFlexDbArchiver with CsvSplitter 
 {

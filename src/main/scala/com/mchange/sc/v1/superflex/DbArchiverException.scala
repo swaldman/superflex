@@ -1,4 +1,4 @@
-package com.mchange.sc.v1.democognos.dbutil;
+package com.mchange.sc.v1.superflex;
 
 class DbArchiverException(message : String, cause : Throwable) extends Exception( message, cause )
 {

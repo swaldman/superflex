@@ -1,4 +1,4 @@
-package com.mchange.sc.v1.democognos.dbutil;
+package com.mchange.sc.v1.superflex;
 
 import java.sql.{PreparedStatement, Types};
 import com.mchange.sc.v1.reconcile._;

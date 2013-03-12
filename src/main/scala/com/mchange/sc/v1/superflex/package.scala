@@ -1,4 +1,4 @@
-package com.mchange.sc.v1.democognos.dbutil;
+package com.mchange.sc.v1;
 
 import java.io.{BufferedReader,BufferedWriter,File,FileReader,FileWriter,PrintWriter};
 import java.sql.{Connection,DriverManager,Statement,SQLException};
@@ -81,7 +81,7 @@ package object superflex
   }
 
   def findBounds( files : Iterable[File], excludeKeyCols : Iterable[String], numBounds : Int, xform : Option[Function1[Array[String],Array[String]]] ) : List[String] = {
-    var colList = (allColNamesOneRowHeaderCsv( files, xform ) filterNot( excludeKeyCols.contains(_) ) ).toList;
+    var colList = (allColNamesOneRowHeaderCsv( files, xform ).filterNot( excludeKeyCols.toSet.contains(_) ) ).toList;
     val spaceBetween = Math.round( Math.ceil( colList.length.asInstanceOf[Float] / (numBounds + 1) ).asInstanceOf[Float] ); 
 
     println( "colList.length: " + colList.length );
@@ -279,7 +279,7 @@ package object superflex
     implicit val sort = splitColSort( colNames );
 
     val keyColList = (TreeSet.empty[String] ++ keyColNames).toList;
-    val othColList = ( (TreeSet.empty[String] ++ colNames) -- keyColNames ).toList;
+    val othColList = ( (TreeSet.empty[String] ++ colNames).filterNot( keyColNames.contains(_) ) ).toList;
 
     //println( keyColList.mkString(", ") );
     //println( othColList.mkString(", ") );
@@ -302,7 +302,7 @@ package object superflex
     implicit val sort = splitColSort( allColNames );
 
     val keyColList : List[String]      = (TreeSet.empty[String] ++ keyColNames).toList;
-    val othColSet  : SortedSet[String] = TreeSet[String]( (colNames -- keyColNames.toList) : _*  );
+    val othColSet  : SortedSet[String] = TreeSet[String]( (colNames.filterNot( keyColNames.contains( _ ) ) ) : _*  );
     val othColList : List[String]      = othColSet.toList;
 
     printf( "keyColList: %s\n\n", keyColList );
