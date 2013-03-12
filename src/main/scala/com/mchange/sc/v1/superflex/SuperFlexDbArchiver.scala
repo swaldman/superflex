@@ -1,4 +1,4 @@
-package com.mchange.sc.v1.democognos.dbutil;
+package com.mchange.sc.v1.superflex;
 
 import java.io.{File, FileInputStream, InputStreamReader, BufferedReader, IOException};
 import java.sql.{Connection,DriverManager,PreparedStatement,SQLException,Statement,Types};
@@ -655,7 +655,7 @@ abstract class SuperFlexDbArchiver extends Splitter {
 
     if (unifiedTableInfo.pkNames != None)
       { 
-	val pkeyExtras = unifiedTableInfo.pkNames.get -- unifiedNamesToColInfos.keySet.toList;
+	val pkeyExtras = unifiedTableInfo.pkNames.get.filterNot( unifiedNamesToColInfos.keySet.contains(_) );
 	if (! pkeyExtras.isEmpty )
 	  throw new DbArchiverException("Column names specified as primary keys don't exist in the inferred or specified table. Unknown primary keys: " + 
 					pkeyExtras.mkString(", ") );
@@ -787,7 +787,7 @@ abstract class SuperFlexDbArchiver extends Splitter {
     val decls : List[String] = 
       {
 	val rawPkColNames = unifiedTableInfo.pkNames;
-	val noPkDecls = unifiedNamesToColInfos.elements.toList.map( tup => ( transformQuoteColName( tup._2.name ) + " " + tup._2.sqlTypeDecl.get ) );
+	val noPkDecls = unifiedNamesToColInfos.toList.map( tup => ( transformQuoteColName( tup._2.name ) + " " + tup._2.sqlTypeDecl.get ) );
 	if (rawPkColNames != None && rawPkColNames.get != Nil)
 	  {
 	    val pkConstraint = "PRIMARY KEY( " + rawPkColNames.get.map( transformQuoteColName _ ).mkString(", ") + " )";
@@ -968,7 +968,7 @@ abstract class SuperFlexDbArchiver extends Splitter {
     insertFiles(csrc, this.files, _filesInfo.get, concurrentInserts, _maybeQualifiedTableName.get ); 
   }
   
-  def insertFiles(csrc : ConnectionSource, files : Collection[NamedDataFileSource], filesInfo : FilesInfo, concurrent : Boolean, maybeQualifiedTableName : String) : Unit =
+  def insertFiles(csrc : ConnectionSource, files : Iterable[NamedDataFileSource], filesInfo : FilesInfo, concurrent : Boolean, maybeQualifiedTableName : String) : Unit =
     {
       if (concurrent)
 	{

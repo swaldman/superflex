@@ -2,16 +2,17 @@ package com.mchange.sc.v1.democognos.dbutil;
 
 import java.io.{BufferedReader,BufferedWriter,File,FileReader,FileWriter,PrintWriter};
 import java.sql.{Connection,DriverManager,Statement,SQLException};
-import com.mchange.v2.csv.FastCsvUtils;
-import com.mchange.sc.v1.sql.ResourceUtils._;
-import com.mchange.sc.v1.util.ClosableUtils;
 import scala.collection.mutable.ArrayBuffer;
 import scala.collection.immutable.Set;
 import scala.collection.immutable.SortedSet;
 import scala.collection.immutable.TreeSet;
 import scala.collection.immutable.HashSet;
 
-object DbUtils
+import com.mchange.v2.csv.FastCsvUtils;
+import com.mchange.sc.v1.sql.ResourceUtils._;
+import com.mchange.sc.v1.util.ClosableUtils;
+
+package object superflex
 {
   def attemptCreate (stmt : Statement, objName : String, createDdl : String ) : Unit = 
   {
@@ -31,9 +32,10 @@ object DbUtils
   def attemptCreateSchema( csrc : ConnectionSource, sname : String ) = 
     withConnection( csrc ) { 
       con => withStatement( con ) { 
-	stmt => DbUtils.attemptCreate( stmt, sname, "CREATE SCHEMA " + sname );
+	stmt => attemptCreate( stmt, sname, "CREATE SCHEMA " + sname );
       }
     }
+
   private def headers( f : File ) : Array[String] = {
     headers( f, None );
   }
@@ -66,10 +68,10 @@ object DbUtils
     }
   }
 
-
   def allColNamesOneRowHeaderCsv( files : Iterable[File] ) : SortedSet[String] = {
     allColNamesOneRowHeaderCsv( files, None );
   }
+
   def allColNamesOneRowHeaderCsv( files : Iterable[File], xform : Option[Function1[Array[String],Array[String]]] ) : SortedSet[String] = {
     files.foldLeft( (new TreeSet[String]).asInstanceOf[SortedSet[String]] )( (set : SortedSet[String], f : File) => set ++ headers( f, xform ) );
   }
@@ -79,7 +81,7 @@ object DbUtils
   }
 
   def findBounds( files : Iterable[File], excludeKeyCols : Iterable[String], numBounds : Int, xform : Option[Function1[Array[String],Array[String]]] ) : List[String] = {
-    var colList = (allColNamesOneRowHeaderCsv( files, xform ) -- excludeKeyCols).toList;
+    var colList = (allColNamesOneRowHeaderCsv( files, xform ) filterNot( excludeKeyCols.contains(_) ) ).toList;
     val spaceBetween = Math.round( Math.ceil( colList.length.asInstanceOf[Float] / (numBounds + 1) ).asInstanceOf[Float] ); 
 
     println( "colList.length: " + colList.length );
@@ -90,7 +92,7 @@ object DbUtils
 
   def csvColumnCount( f : File ) : Int = headers(f).size; //no need to transform, number of columns must be invariant to transformations
 
-  def splitOneRowHeaderCsvFile( splitMe : File, primaryKeyColNames : Set[String], maxCols: Int, splitBufferSize : Int, splitFileDir : File ) : Collection[File] = {
+  def splitOneRowHeaderCsvFile( splitMe : File, primaryKeyColNames : Set[String], maxCols: Int, splitBufferSize : Int, splitFileDir : File ) : Iterable[File] = {
     splitOneRowHeaderCsvFile( splitMe, primaryKeyColNames, maxCols, splitBufferSize, splitFileDir, None );
   }
 
@@ -99,8 +101,8 @@ object DbUtils
 			       maxCols: Int, 
 			       splitBufferSize : Int, 
 			       splitFileDir : File, 
-			       xform : Option[Function1[Array[String],Array[String]]] ) : Collection[File] = {
-    assert( splitMe.getName().endsWith(".csv") );
+			       xform : Option[Function1[Array[String],Array[String]]] ) : Iterable[File] = {
+    require( splitMe.getName().endsWith(".csv") );
 
     var totalCols = csvColumnCount( splitMe );
     //printf("%s: totalCols: %d, maxCols: %d\n", splitMe, totalCols, maxCols);
@@ -121,7 +123,7 @@ object DbUtils
 				       primaryKeyColNames : Set[String], 
 				       boundaryCols : List[String], 
 				       splitBufferSize : Int, 
-				       splitFileDir : File ) : Collection[File] = {
+				       splitFileDir : File ) : Iterable[File] = {
     splitOneRowHeaderCsvFileByBounds(splitMe, allColNames, primaryKeyColNames, boundaryCols, splitBufferSize, splitFileDir, None);
   }
 
@@ -131,8 +133,8 @@ object DbUtils
 				       boundaryCols : List[String], 
 				       splitBufferSize : Int, 
 				       splitFileDir : File,
-				       xform : Option[Function1[Array[String],Array[String]]] ) : Collection[File] = {
-    assert( splitMe.getName().endsWith(".csv") );
+				       xform : Option[Function1[Array[String],Array[String]]] ) : Iterable[File] = {
+    require( splitMe.getName().endsWith(".csv") );
 
     val baseTableName = splitMe.getName().substring(0, splitMe.getName().length() - 4);
     var numFiles = boundaryCols.length + 1;
@@ -305,7 +307,7 @@ object DbUtils
 
     printf( "keyColList: %s\n\n", keyColList );
 
-    val boundaryColsIter = (TreeSet.empty[String] ++ boundaryColsExclusive).elements;
+    val boundaryColsIter = (TreeSet.empty[String] ++ boundaryColsExclusive).iterator;
 
     val outBuf = new ArrayBuffer[List[String]];
 

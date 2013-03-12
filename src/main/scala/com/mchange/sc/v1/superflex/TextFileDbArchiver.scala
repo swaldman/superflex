@@ -71,7 +71,7 @@ abstract class TextFileDbArchiver
   {
     if ( mds.size == 0 )
       throw new DbArchiverException("Failed to read even one metadata instance: " + mds.mkString("{ ",", "," }"));
-    val first = mds.first;
+    val first = mds.head;
     if (! mds.forall( _ sameElements first) )
 	throw new DbArchiverException("Metadata from all files must be identical! " + mds);
   }
@@ -251,7 +251,7 @@ abstract class TextFileDbArchiver
       {	
 	val allMetaData = for( br <- streams ) yield readMetaData( br ); 
 	validateMetaData( allMetaData );
-	allMetaData.first
+	allMetaData.head
       }
       finally
       { streams.foreach( attemptClose _ ); }
@@ -273,7 +273,7 @@ abstract class TextFileDbArchiver
     // "wide enough" to accommodate all data from all files
     //
     // note that we expact as many replies as there are actors, so we just iterate over the actors collection
-    val fileResults = for (a <- actors) yield { Actor.self.receive {case ec : RandomAccessSeq[ExaminedColumn] => ec} };
+    val fileResults = for (a <- actors) yield { Actor.self.receive {case ec : Vector[ExaminedColumn] => ec} };
     val inferredCols = 
       for (c <- 0 until numCols) yield
 	( (for( i <- 0 until files.length) yield fileResults(i)(c)).reduceLeft( _ && _ ) );
