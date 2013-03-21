@@ -20,7 +20,8 @@ object SuperFlexBuild extends Build {
       }
     },
     Keys.resolvers += ("snapshots" at nexusSnapshots ),
-    Keys.pomExtra := pomExtraXml
+    Keys.pomExtra := pomExtraXml,
+    Keys.scalacOptions ++= Seq("-deprecation","-feature")
   );
 
   val dependencies = Seq(

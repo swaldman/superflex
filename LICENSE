@@ -1,10 +1,4 @@
 /*
- * Distributed as part of superflex v0.2.0
- *
- * Copyright (C) 2013 Machinery For Change, Inc.
- *
- * Author: Steve Waldman <swaldman@mchange.com>
- *
  * This library is free software; you can redistribute it and/or modify
  * it under the terms of EITHER:
  *
@@ -30,13 +24,4 @@
  *
  * LGPL v2.1: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
  *  EPL v1.0: http://www.eclipse.org/org/documents/epl-v10.php 
- * 
  */
-
-package com.mchange.sc.v1.superflex;
-
-trait Splitter
-{
-  // should trim if desired
-  def split(row : String) : Array[String];
-}
