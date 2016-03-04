@@ -38,6 +38,8 @@ package com.mchange.sc.v1.superflex;
 import java.io.{File, FileInputStream, InputStreamReader, BufferedReader, IOException};
 import java.sql.{Connection,DriverManager,PreparedStatement,SQLException,Statement,Types};
 import java.text.{ParseException,SimpleDateFormat};
+import com.mchange.v2.csv.CsvBufferedReader;
+
 import scala.collection._;
 import scala.collection.mutable.ArrayBuffer;
 import com.mchange.sc.v1.util.ClosableUtils._;
@@ -80,22 +82,32 @@ object SuperFlexDbArchiver {
   object FileDataFileSource {
     def apply( fileName : String ) : FileDataFileSource = new FileDataFileSource( new File( fileName ) );
     def apply( file : File ) : FileDataFileSource = new FileDataFileSource( file );
+
+    abstract class Base( val f : File, fullpath : Boolean = true ) extends NamedDataFileSource {
+      def createBufferedReader( bufferSize : Int, fileEncoding : String ) : BufferedReader = { new BufferedReader( new InputStreamReader( new FileInputStream( f ), fileEncoding ), bufferSize ) };
+      def sourceName : String = { if (fullpath) f.getCanonicalPath(); else f.getName(); }
+
+      override def equals( other : Any ) : Boolean = {
+        other match {
+	  case (o : FileDataFileSource) if this.getClass == other.getClass => this.f == o.f;
+	  case _ => false;
+        }
+      }
+      override def hashCode() : Int = f.hashCode() + 3;
+    }
   }
 
-  final class FileDataFileSource( val f : File, fullpath : Boolean ) extends NamedDataFileSource {
-    def createBufferedReader( bufferSize : Int, fileEncoding : String ) : BufferedReader = { new BufferedReader( new InputStreamReader( new FileInputStream( f ), fileEncoding ), bufferSize ) };
-    def sourceName : String = { if (fullpath) f.getCanonicalPath(); else f.getName(); }
+  final class FileDataFileSource( f : File, fullpath : Boolean = true ) extends FileDataFileSource.Base( f, fullpath );
 
-    def this( f : File ) = this( f, true ); 
-
-    override def equals( other : Any ) : Boolean = {
-      other match {
-	case (o : FileDataFileSource) => this.f == o.f;
-	case _ => false;
-      }
-    }
-
-    override def hashCode() : Int = f.hashCode() + 3;
+  /**
+    * Necessary to support CSV files tha contain quoted multiline entries
+    */ 
+  object CsvFileDataFileSource {
+    def apply( fileName : String ) : CsvFileDataFileSource = new CsvFileDataFileSource( new File( fileName ) );
+    def apply( file : File ) : CsvFileDataFileSource = new CsvFileDataFileSource( file );
+  }
+  final class CsvFileDataFileSource( f : File, fullpath : Boolean = true ) extends FileDataFileSource.Base( f, fullpath ) {
+    override def createBufferedReader( bufferSize : Int, fileEncoding : String ) : BufferedReader = new CsvBufferedReader( super.createBufferedReader( bufferSize, fileEncoding ) )
   }
 
   def dfltColSort( pkNames : List[String] ) : Ordering[String] = new Ordering[String] {
