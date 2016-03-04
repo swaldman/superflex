@@ -47,33 +47,28 @@ import com.mchange.v2.csv.FastCsvUtils;
 import com.mchange.sc.v1.sql.ResourceUtils._;
 import com.mchange.sc.v1.util.ClosableUtils;
 
-package object superflex
-{
-  def attemptCreate (stmt : Statement, objName : String, createDdl : String ) : Unit = 
-  {
-    try
-    { stmt.executeUpdate(createDdl); }
-    catch
-    {
+package object superflex {
+  def attemptCreate (stmt : Statement, objName : String, createDdl : String ) : Unit = {
+    try { 
+      stmt.executeUpdate(createDdl); 
+    } catch {
       // assume an SQLException means that the object is already there.
-      case (t : SQLException) =>
-	{ 
-	  printf("Failed to create %s. Verify that it is already present.\n", objName);
-	  t.printStackTrace();
-	}
-    }
-  }
-
-  def attemptCreateSchema( csrc : ConnectionSource, sname : String ) = 
-    withConnection( csrc ) { 
-      con => withStatement( con ) { 
-	stmt => attemptCreate( stmt, sname, "CREATE SCHEMA " + sname );
+      case (t : SQLException) => { 
+	printf("Failed to create %s. Verify that it is already present.\n", objName);
+	t.printStackTrace();
       }
     }
-
-  private def headers( f : File ) : Array[String] = {
-    headers( f, None );
   }
+
+  def attemptCreateSchema( csrc : ConnectionSource, sname : String ) = {
+    withConnection( csrc ) { con => 
+      withStatement( con ) { stmt => 
+        attemptCreate( stmt, sname, "CREATE SCHEMA " + sname );
+      }
+    }
+  }
+
+  private def headers( f : File ) : Array[String] = headers( f, None );
 
   private def headers( f : File, xform : Option[Function1[Array[String],Array[String]]] ) : Array[String] = {
     //println(f);
@@ -83,15 +78,6 @@ package object superflex
       br => headers( br, xform );
     }
   }
-
-/*
-  def getOrElsePrint( thang : Map[String,String], key : String, dflt : String ) : String = {
-    val out = thang.getOrElse( key, dflt );
-    if (out != dflt)
-      printf("found key: %s\n", key);
-    out;
-  }
-*/
 
   // BufferedReader should be prior to the first line
   private def headers( br : BufferedReader, xform : Option[Function1[Array[String],Array[String]]] ) : Array[String] = {
@@ -360,11 +346,11 @@ package object superflex
 	  case ( None, Some(_) )    => keyColList:::((othColSet.to( to.get )).toList);
 	  case ( Some(_), Some(_) ) => keyColList:::((othColSet.range( from.get, to.get )).toList);
 	  case ( Some(_), None )    => keyColList:::((othColSet.from( from.get )).toList);
-	  case _ @ pair             => throw new RuntimeException("Huh? Unexpected pair: " + pair);
+	  case pair                 => throw new RuntimeException("Huh? Unexpected pair: " + pair);
 	} 
       );
 
-      println( Pair( from, to ) );
+      println( Tuple2( from, to ) );
 
       from = to
     }
@@ -451,63 +437,4 @@ package object superflex
 
     }
   }
-
-
-/*
-  // boundsList should contain sinks-1 (inclusive boundary col names)
-  def divideIntoJoinable(colNames    : List[String], 
-			 keyColNames : Set[String], 
-			 inputRows   : Iterator[List[String]], 
-			 sinks       : List[WritableTable],
-                         boundsList  : List[String]) : Unit = { 
-
-    val numSinks = sinks.length;
-    val numKeys = keyColNames.size;
-
-    implicit val sort : (String) => Ordered[String] = {
-      me => {
-	new Ordered[String] {
-	  def compare( other : String ) : Int = {
-	    val meIdx = colNames.indexOf( me );
-	    val othIdx = colNames.indexOf( other );
-	    assert( meIdx >= 0 && othIdx >= 0 );
-	    if ( meIdx > othIdx ) 1;
-	    else if ( meIdx < othIdx ) -1;
-	    else 0;
-	  }
-	}
-      }
-    }
-
-    val keyColList = (TreeSet.empty[String] ++ keyColNames).toList;
-    val othColList = ( (TreeSet.empty[String] ++ colNames) -- keyColNames ).toList;
-
-    //println( keyColList.mkString(", ") );
-    //println( othColList.mkString(", ") );
-
-    val tailTableNonKeyLen  = (othColList.length / numSinks);
-    val firstTableNonKeyLen = (tailTableNonKeyLen + (othColList.length % numSinks));
-
-    val firstTableCols = keyColList ++ othColList.take( firstTableNonKeyLen );
-    val otherTablesColsList = (for ( start <- firstTableNonKeyLen until othColList.length by tailTableNonKeyLen )
-			      yield ( keyColList ++ othColList.slice(start, start + tailTableNonKeyLen) )).toList;
-
-    val allTablesCols = firstTableCols::otherTablesColsList;
-    val headerSinkTuples = allTablesCols.zip( sinks );
-    headerSinkTuples.foreach( tup => tup._2.setColNames( tup._1 ) );
-    inputRows.foreach {
-      row => {
-	val rowMap = Map.empty ++ colNames.zip( row );
-	headerSinkTuples.foreach {
-	  tup => {
-	    val headers = tup._1;
-	    val sink = tup._2;
-	    sink.addDataRow( headers.map( rowMap( _ ) ) );
-	  }
-	}
-      }
-    }
-  }
-*/
-
 }
