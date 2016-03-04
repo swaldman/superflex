@@ -9,8 +9,8 @@ object SuperFlexBuild extends Build {
   val mySettings = Seq( 
     Keys.organization := "com.mchange",
     Keys.name := "superflex", 
-    Keys.version := "0.2.0-SNAPSHOT", 
-    Keys.scalaVersion := "2.10.0",
+    Keys.version := "0.2.1-SNAPSHOT", 
+    Keys.scalaVersion := "2.11.7",
     Keys.publishTo <<= Keys.version { 
       (v: String) => {
 	if (v.trim.endsWith("SNAPSHOT"))
@@ -25,7 +25,8 @@ object SuperFlexBuild extends Build {
   );
 
   val dependencies = Seq(
-    "com.mchange" %% "mchange-commons-scala" % "0.4.0-SNAPSHOT" changing()
+    "com.mchange" %% "mchange-commons-scala" % "0.4.0" changing(),
+    "org.scala-lang.modules" %% "scala-xml" % "1.0.5"
   );
 
   override lazy val settings = super.settings ++ mySettings;
