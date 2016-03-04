@@ -635,18 +635,6 @@ abstract class SuperFlexDbArchiver extends Splitter {
 								     Some(tup._2.bestTypeDeclaration._1), 
 								     Some(tup._2.bestTypeDeclaration._2), 
 								     Some(tup._2.setter) ) ).toSeq;
-      /*
-       val synthCols = syntheticColumns;
-       
-       val allColMap = mutable.Map.empty[String,ColumnInfo];
-       allColMap ++= inferredColInfos.map( ci => (ci.name -> ci) );
-       allColMap ++= synthCols.map( ci => ( ci.name -> ci ) );
-       if (priorTableInfo.cols != None)
-       allColMap ++= priorTableInfo.cols.get.map( ci => ( ci.name -> ci ) );
-       val allColSort = immutable.TreeMap.empty[String, ColumnInfo](colSort) ++  allColMap;
-       val allColSeq = allColSort.map( _._2 ).toSeq;
-       */ 
-
       val inferredTableInfo = new TableInfo( None, None, Some(inferredColInfos), None ); // name and any schema or pkeys should be set on priorTableInfo
 
       // unified table info will contain information about synthetic colums by inference (they were included in filesInfo)
@@ -896,8 +884,6 @@ abstract class SuperFlexDbArchiver extends Splitter {
         }
       }
 
-      //var processor = CollectionProcessor( fcn, maxConcurrency );
-      //processor.process( files )
       files.par.map( fcn );
     } else {
       withConnection( csrc )( con => files.foreach( insertFile( con, _, filesInfo, maybeQualifiedTableName ) ) )
@@ -913,10 +899,6 @@ abstract class SuperFlexDbArchiver extends Splitter {
     }
   }
 
-  //private def f2br(f : File, bs : Int) : BufferedReader = { new BufferedReader( new InputStreamReader( new FileInputStream( f ), fileEncoding ), bs ) } 
-  
-  //private def f2br(f : File) : BufferedReader = { f2br( f, bufferSize ); }
-  
   // XXX: hardcoded 8K starting buffer for headers
   private def buildStreams() : Seq[BufferedReader] = {
     var buildStreams = new ArrayBuffer[BufferedReader];
@@ -964,91 +946,6 @@ abstract class SuperFlexDbArchiver extends Splitter {
     //val processor = CollectionProcessor( xformFcn, maxConcurrency );
     //val triples = processor.process( files.map( f => (f, fi.colNamesByFile(f)) ) );
     val triples = files.par.map( f => (f, fi.colNamesByFile(f)) ).map( xformFcn ).toVector;
-
-    /*
-    var cnt = 0;
-    val actors = files.map
-    {
-      f =>
-	{
-	  val a = new StreamColumnsExaminer(Actor.self);
-	  a.start(); cnt +=1;
-	  printf("%s started. [actors running %d]\n", a, cnt);
-	  a ! ( f, fi.colNamesByFile(f)); 
-	  a
-	}
-    };
-
-/*
-    val actors = new Array[Actor]( files.length );
-    for ( i <- 0 until files.length )
-      {
-	val f = files(i);
-	val a = new StreamColumnsExaminer(Actor.self);
-	actors(i) = a;
-	a.start();
-	println(a + " started");
-	a ! ( f, fi.colNamesByFile(f)); 
-      }
- */ 
-
-    println( "All examination actors started." );
-
-    // note that we expact as many replies as there are actors, so we just iterate over the actors collection
-
-    val triples : Iterable[ Tuple3[NamedDataFileSource,Seq[ExaminedColumn],FkdLineKeeper] ] = 
-    {
-      for (a <- actors) yield 
-	{ 
-	  Actor.self.receive 
-	  {
-	    case msg : (NamedDataFileSource, Seq[ExaminedColumn], FkdLineKeeper) =>  
-	      {
-		cnt -= 1;
-		printf("examination actor completed with message. [%d still running]\n", cnt);
-		msg; 
-	      }
-	    case t : Throwable => 
-	      {
-		// if an Actor breaks kill everything...
-		try { actors.foreach( _ ! 'exit ); } catch { case e : Throwable => printThrowable( e ); }
-		throw t; 
-	      }
-	    case x @ _ => { val s : String = "UNEXPECTED MESSAGE from StreamColumnsExaminer: " + x; println(s); throw new Exception(s); }
-	  } 
-	} 
-    };
-
-
-/*
-    val triples : Iterable[ Tuple3[NamedDataFileSource,Seq[ExaminedColumn],FkdLineKeeper] ] = 
-    {
-      var out : List[ Tuple3[NamedDataFileSource,Seq[ExaminedColumn],FkdLineKeeper] ] = Nil;
-      while (cnt > 0) 
-	{ 
-	  Actor.self.receive 
-	  {
-	    case msg : (NamedDataFileSource, Seq[ExaminedColumn], FkdLineKeeper) =>  
-	      {
-		cnt -= 1;
-		printf("examination actor completed with message. [%d still running]\n", cnt);
-		out = msg::out;
-	      }
-	    case t : Throwable => 
-	      {
-		// if an Actor breaks kill everything...
-		try { actors.foreach( _.exit ); } catch { case e : Throwable => printThrowable( e ); }
-		throw t; 
-	      }
-	    case x @ _ => { val s : String = "UNEXPECTED MESSAGE from StreamColumnsExaminer: " + x; println(s); throw new Exception(s); }
-	  } 
-	} 
-      out
-    };
-
- */ 
-
-*/
 
     val keepers : Map[NamedDataFileSource,FkdLineKeeper] = immutable.Map.empty ++ triples.map( trip => (trip._3.source -> trip._3 ) );
     this._fkdLineKeepers = Some( keepers );
@@ -1129,42 +1026,7 @@ abstract class SuperFlexDbArchiver extends Splitter {
 
   private def goodLine( line : String ) : Boolean = { line != null && line.trim().length > 0 }
 
-/*
-  private class StreamColumnsExaminer(val mgr : Actor) extends Actor
-  {
-    override def act : Unit =
-      {
-	try
-	{
-	  val ( f, recs, blk ) : (NamedDataFileSource, Seq[Rec], FkdLineKeeper) = 
-	    receive
-	    {
-	      case ( f : NamedDataFileSource, colNames : Seq[String] ) => 
-	      {
-		var numCols : Int = colNames.length;
-		printf("Examining %s, which has %d columns.\n", f.sourceName, numCols);
-		val br = f.createBufferedReader( bufferSize, fileEncoding );
-		readMetaData( br ); //skip preliminaries
-		try 
-		{
-		  val examination = examineColumns( br, colNames, f );
-		  ( f, examination._1, examination._2 ); 
-		}
-		finally { br.close(); }
-	      }
-	      case 'exit => exit();
-	      case msg => { val s = "unexpected message " + msg; println(s); throw new Exception(s); }
-	      //case (a : Any) => printf("%s: Unexpected message -- %s", this, a);
-	    }
-	  mgr ! ( f, (for (rec <- recs) yield rec.toExaminedColumn).toSeq, blk );
-	}
-	catch
-	{ case t : Throwable => { printThrowable( t ); mgr ! t; throw t; } }
-      }
-
-  }
-*/
-    // colNames includes synthetic colNames (appended at end), as they are set up in filesInfo
+  // colNames includes synthetic colNames (appended at end), as they are set up in filesInfo
   private def examineColumns(br : BufferedReader, colNames : Array[String], f : NamedDataFileSource) : Tuple2[Seq[Rec], FkdLineKeeper] = {
     var fkdLines : List[FkdLine] = Nil;
 
@@ -1272,65 +1134,65 @@ abstract class SuperFlexDbArchiver extends Splitter {
 					  if ( dtfg.anyHope ) { Some( dtfg.guess.toPattern ) } else { None }
     );
 
-      //note that we don't treat all zero strings of any length as containing "leading zeros"
-      def hasLeadingZeros( datum : String ) : Boolean = {
-	val m = leadingZerosRegex.findFirstMatchIn(datum);
-	(m != None && m.get.start == 0 && !datum.forall( _ == '0'))
+    //note that we don't treat all zero strings of any length as containing "leading zeros"
+    def hasLeadingZeros( datum : String ) : Boolean = {
+      val m = leadingZerosRegex.findFirstMatchIn(datum);
+      (m != None && m.get.start == 0 && !datum.forall( _ == '0'))
+    }
+
+    def update( datum : String ) : Unit = {
+      if (datum == null || isNull(datum, colName)) //we can draw no inferences from nulls
+	return;
+
+      booleanOnly = ( booleanOnly && (asBoolean(datum) != None) ); // does &&= work?
+
+      if (numericOnly) { // integerOnly implies numericOnly
+	if (datum.length == 0) { //we interpret this case as empty string, since we know it isn't interpreted as null
+	  numericOnly = false;
+	  integerOnly = false;
+	  if ( debugColumnInspection ) printf("[%s] Numeric types ruled out by empty string not interpreted as NULL\n", colName);
+	} else if ( (! datum.forall( "-0123456789.eE".contains( _ ) )) ||
+          (! "0123456789.".contains(datum.last)) ) { //we accept the letter E for representations in scientific notation
+	  numericOnly = false;
+	  integerOnly = false;
+	  if ( debugColumnInspection ) printf("[%s] Numeric types ruled out by datum '%s', which cannot be interpreted as a number.\n", colName, datum);
+	} else if ( numericOnly && datum.indexOf('-') > 0 && datum.toLowerCase().indexOf("e-") != 0) { //we have to deal with negatives from scientific notation... yes i should use parseDouble or NumberFormat...
+	  numericOnly = false;
+	  integerOnly = false;
+	  if ( debugColumnInspection ) printf("[%s] Numeric types ruled out by datum '%s', which cannot be interpreted as a number because of an internal dash.\n", colName, datum);
+	} else if( leadingZerosNonNumeric && numericOnly && hasLeadingZeros( datum ) ) {
+	  numericOnly = false;
+	  integerOnly = false;
+	  if ( debugColumnInspection ){
+            printf("[%s] Numeric types ruled out by datum '%s', since config param 'leadingZerosNonNumeric' is true, and the datum contains leading zeros.\n", colName, datum);
+          }
+	} else if ( integerOnly && (datum.contains('.') || datum.contains('e') || datum.contains('E') ) ) {
+	  integerOnly = false;
+	  if ( debugColumnInspection ) printf("[%s] Integral types ruled out by datum '%s', which contains a '.'\n", colName, datum);
+	}
       }
 
-      def update( datum : String ) : Unit = {
-	if (datum == null || isNull(datum, colName)) //we can draw no inferences from nulls
-	  return;
+      if (fixedLength > -2) {
+	if (fixedLength >= 0) {
+	  val newFixedLength = if (datum.length == fixedLength) { datum.length } else { -2 }; //a variation, -2 means not fixed
 
-	booleanOnly = ( booleanOnly && (asBoolean(datum) != None) ); // does &&= work?
-	  
-	if (numericOnly) { // integerOnly implies numericOnly
-	  if (datum.length == 0) { //we interpret this case as empty string, since we know it isn't interpreted as null
-	    numericOnly = false;
-	    integerOnly = false;
-	    if ( debugColumnInspection ) printf("[%s] Numeric types ruled out by empty string not interpreted as NULL\n", colName);
-	  } else if ( (! datum.forall( "-0123456789.eE".contains( _ ) )) || 
-                        (! "0123456789.".contains(datum.last)) ) { //we accept the letter E for representations in scientific notation
-	    numericOnly = false;
-	    integerOnly = false;
-	    if ( debugColumnInspection ) printf("[%s] Numeric types ruled out by datum '%s', which cannot be interpreted as a number.\n", colName, datum);
-	  } else if ( numericOnly && datum.indexOf('-') > 0 && datum.toLowerCase().indexOf("e-") != 0) { //we have to deal with negatives from scientific notation... yes i should use parseDouble or NumberFormat...
-	    numericOnly = false;
-	    integerOnly = false;
-	    if ( debugColumnInspection ) printf("[%s] Numeric types ruled out by datum '%s', which cannot be interpreted as a number because of an internal dash.\n", colName, datum);
-	  } else if( leadingZerosNonNumeric && numericOnly && hasLeadingZeros( datum ) ) {
-	    numericOnly = false;
-	    integerOnly = false;
-	    if ( debugColumnInspection ){
-              printf("[%s] Numeric types ruled out by datum '%s', since config param 'leadingZerosNonNumeric' is true, and the datum contains leading zeros.\n", colName, datum);
-            }
-	  } else if ( integerOnly && (datum.contains('.') || datum.contains('e') || datum.contains('E') ) ) {
-	    integerOnly = false;
-	    if ( debugColumnInspection ) printf("[%s] Integral types ruled out by datum '%s', which contains a '.'\n", colName, datum);
-	  }
+	  if ( debugColumnInspection && newFixedLength == -2) {
+	    printf("[%s] Puative fixed length of %d invalidated by '%s' of length %d.\n", colName, fixedLength, datum, datum.length);
+          }
+
+	  fixedLength = newFixedLength;
+	} else {
+	  fixedLength = datum.length;
+
+	  if ( debugColumnInspection ) printf("[%s] Puative fixed length of %d set by first non-null value, '%s'.\n", colName, fixedLength, datum);
 	}
-
-	if (fixedLength > -2) {
-	  if (fixedLength >= 0) {
-	    val newFixedLength = if (datum.length == fixedLength) { datum.length } else { -2 }; //a variation, -2 means not fixed
-
-	    if ( debugColumnInspection && newFixedLength == -2) {
-	      printf("[%s] Puative fixed length of %d invalidated by '%s' of length %d.\n", colName, fixedLength, datum, datum.length);
-            }
-		  
-	    fixedLength = newFixedLength;
-	  } else {
-	    fixedLength = datum.length;
-
-	    if ( debugColumnInspection ) printf("[%s] Puative fixed length of %d set by first non-null value, '%s'.\n", colName, fixedLength, datum);
-	  }
-	}
-
-	maxLength = maxLength max datum.length;
-
-	if ( dfg.anyHope ) dfg.check ( datum );
-	if (dtfg.anyHope ) dtfg.check ( datum );
       }
+
+      maxLength = maxLength max datum.length;
+
+      if ( dfg.anyHope ) dfg.check ( datum );
+      if (dtfg.anyHope ) dtfg.check ( datum );
+    }
   }
 }
 
