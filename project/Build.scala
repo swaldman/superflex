@@ -25,7 +25,7 @@ object SuperFlexBuild extends Build {
   );
 
   val dependencies = Seq(
-    "com.mchange" %% "mchange-commons-scala" % "0.4.0" changing(),
+    "com.mchange" %% "mchange-commons-scala" % "0.4.1-SNAPSHOT" changing(),
     "org.scala-lang.modules" %% "scala-xml" % "1.0.5"
   );
 
@@ -38,7 +38,7 @@ object SuperFlexBuild extends Build {
   ); 
 
   val pomExtraXml = (
-      <url>http://www.mchange.com/mchange-commons-scala</url>
+      <url>http://www.mchange.com/project/superflex</url>
       <licenses>
         <license>
           <name>GNU Lesser General Public License, Version 2.1</name>
