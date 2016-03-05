@@ -49,7 +49,7 @@ import scala.language.reflectiveCalls;
 
 object SuperFlexDbArchiver {
   val dfltDateFormatPatterns = Array("yyyy-MM-dd", "yyyyMMdd", "MMddyyyy", "dd-MMM-yyyy", "dd-MMM-yy", "MM/dd/yy", "MM/dd/yyyy", "ddMMMyyyy");
-  val dfltDateTimeFormatPatternAddenda = Array("'T'HH:mm:ss");
+  val dfltDateTimeFormatPatternAddenda = Array("'T'HH:mm:ss"," HH:mm:ss z");
   val dfltDateTimeFormatPatterns = for (p <- dfltDateFormatPatterns; sfx <- dfltDateTimeFormatPatternAddenda) yield (p + sfx);
 
   // to distinguish dates from datetimes, since datetime patterns are

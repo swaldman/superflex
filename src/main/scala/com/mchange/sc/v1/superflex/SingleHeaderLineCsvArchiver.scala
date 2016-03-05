@@ -41,11 +41,10 @@ import com.mchange.sc.v1.superflex.SuperFlexDbArchiver.{Key,MetaData};
 
 abstract class SingleHeaderLineCsvArchiver extends SuperFlexDbArchiver with CsvSplitter 
 {
-  override def readMetaData( br : BufferedReader ) : MetaData = 
-    { 
-      val colNameLine = br.readLine();
-      val prologue = colNameLine;
-      
-      immutable.Map( Key.COL_NAMES -> split( colNameLine ).toList, Key.PROLOGUE -> (prologue::Nil) ); 
-    };
+  override def readMetaData( br : BufferedReader ) : MetaData = { 
+    val colNameLine = br.readLine();
+    val prologue = colNameLine;
+
+    immutable.Map( Key.COL_NAMES -> split( colNameLine ).toList, Key.PROLOGUE -> (prologue :: Nil) );
+  };
 }
