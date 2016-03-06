@@ -145,13 +145,13 @@ object SuperFlexDbArchiver {
   val bigintSetter          = ( (ps : PreparedStatement, i : Int, s: String) => ps.setLong(i, java.lang.Long.parseLong(s)) );
   val doublePrecisionSetter = ( (ps : PreparedStatement, i : Int, s: String) => ps.setDouble(i, java.lang.Double.parseDouble( s ) ) );
 
-  def dateSetter( pattern : String )     = new DateTimeSetter( pattern )
-  def timestampSetter( pattern : String ) = new DateTimeSetter( pattern )
+  def dateSetter( pattern : String )     = new DateSetter( pattern )
+  def timestampSetter( pattern : String ) = new TimestampSetter( pattern )
 
   // each thread should make a copy, as not all setters can be called concurrently
   // setters that can be called concurrently will be passed back as "copies".
   def copySetter( setter : Function3[PreparedStatement, Int, String, Unit] ) : Function3[PreparedStatement, Int, String, Unit] = {
-    if ( setter.isInstanceOf[DateTimeSetter] ) setter.asInstanceOf[DateTimeSetter].copy else setter;
+    if ( setter.isInstanceOf[CopyableSetter] ) setter.asInstanceOf[CopyableSetter].copy else setter;
   }
 
   def copyMaybeSetter( maybeSetter : Option[Function3[PreparedStatement, Int, String, Unit]] ) : Option[Function3[PreparedStatement, Int, String, Unit]] = {
@@ -161,28 +161,54 @@ object SuperFlexDbArchiver {
       None;
   }
 
+  sealed trait CopyableSetter extends Function3[PreparedStatement,Int,String,Unit] {
+    def copy : CopyableSetter
+  }
+
   // ensures that multiple instances are equal while allowing for distinct instances (required
   // to avoid synchronization during multithreaded use, as SimpleDateFormat is not thread
-  // safe). (I'm afraid to use a case class here, 'cuz what if they're intern()ed somehow?
-  final class DateTimeSetter( val pattern : String ) extends Function3[PreparedStatement,Int,String,Unit] {
+  // safe). 
+  final class DateSetter( val pattern : String ) extends CopyableSetter {
     val df = new SimpleDateFormat( pattern );
 
+    override def equals( other : Any ) : Boolean = other match {
+      case ds : DateSetter => (this eq ds) || (this.pattern == ds.pattern)
+      case _               => false
+    }
+
+    override def hashCode = pattern.hashCode ^ (1 << 0)
+
+    override def toString = s"DateSetter(${pattern})"
+
     override def apply( ps : PreparedStatement, i : Int, s : String) : Unit = {
-      try {  ps.setDate(i, new java.sql.Date(df.parse( s ).getTime() ) ) }
+      try {  ps.setDate(i, new java.sql.Date( df.parse( s ).getTime() ) ) }
       catch{ case t : Throwable => printf("Pattern %s, Bad datum %s\n", pattern, s); throw t; }
     }
 
-    override def equals( other : Any ): Boolean = {
-      other match {
-	case o  : DateTimeSetter => ((this eq o) || (this.pattern == o.pattern));
-	case _  : Any => false;
-      }
+    def copy : DateSetter = new DateSetter( pattern );
+  }
+
+  final class TimestampSetter( val pattern : String ) extends CopyableSetter {
+    val df = new SimpleDateFormat( pattern );
+
+    override def apply( ps : PreparedStatement, i : Int, s : String) : Unit = {
+      try {  ps.setTimestamp(i, new java.sql.Timestamp( df.parse( s ).getTime() ) ) }
+      catch{ case t : Throwable => printf("Pattern %s, Bad datum %s\n", pattern, s); throw t; }
     }
 
-    override def hashCode : Int = pattern.hashCode;
+    override def equals( other : Any ) : Boolean = other match {
+      case ts : TimestampSetter => (this eq ts) || (this.pattern == ts.pattern)
+      case _               => false
+    }
 
-    def copy = new DateTimeSetter( pattern );
+    override def hashCode = pattern.hashCode ^ (1 << 1)
+
+    override def toString = s"TimestampSetter(${pattern})"
+
+    def copy : TimestampSetter = new TimestampSetter( pattern );
   }
+
+
 
   case class FkdLine( rawLine : String, transformedLine : String, splitLine : Seq[String], probDesc : String ) {
     def xmlSnippet =
@@ -809,6 +835,11 @@ abstract class SuperFlexDbArchiver extends Splitter {
 
       // generate appropriate data setting functions, mixing inferred with preset columns
       val setters  = for ( cn <- fileColNames) yield copyMaybeSetter( unifiedNamesToColInfos( cn ).setter ); //not all setters are thread safe... we must copy
+
+      //val fcns = fileColNames.mkString(", ")
+      //println( s"fileColNames: ${fcns}" )
+      //println( s"SETTERS: ${setters.map( _.get ).mkString(", ")}" )
+
       val typeCode = for ( cn <- fileColNames) yield unifiedNamesToColInfos( cn ).typeCode;
 
       val insertStmt = String.format("INSERT INTO %s %s VALUES %s", maybeQualifiedTableName, psColList, psInsertionPoints );
@@ -1196,7 +1227,7 @@ abstract class SuperFlexDbArchiver extends Splitter {
 	} else {
 	  fixedLength = datum.length;
 
-	  if ( debugColumnInspection ) printf("[%s] Puative fixed length of %d set by first non-null value, '%s'.\n", colName, fixedLength, datum);
+	  if ( debugColumnInspection ) printf("[%s] Putative fixed length of %d set by first non-null value, '%s'.\n", colName, fixedLength, datum);
 	}
       }
 
