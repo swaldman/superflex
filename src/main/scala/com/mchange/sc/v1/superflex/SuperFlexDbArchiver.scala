@@ -36,12 +36,14 @@
 package com.mchange.sc.v1.superflex;
 
 import java.io.{File, FileInputStream, InputStreamReader, BufferedReader, IOException};
+import java.net.URL;
 import java.sql.{Connection,DriverManager,PreparedStatement,SQLException,Statement,Types};
 import java.text.{ParseException,SimpleDateFormat};
 import com.mchange.v2.csv.CsvBufferedReader;
 
 import scala.collection._;
 import scala.collection.mutable.ArrayBuffer;
+
 import com.mchange.sc.v1.util.ClosableUtils._;
 import com.mchange.sc.v1.sql.ResourceUtils._;
 
@@ -77,6 +79,13 @@ object SuperFlexDbArchiver {
 
     override def equals( other : Any ) : Boolean;
     override def hashCode() : Int;
+  }
+
+  final case class UrlDataFileSource( url : URL ) extends NamedDataFileSource {
+    def createBufferedReader( bufferSize : Int, fileEncoding : String ) : BufferedReader = {
+      new BufferedReader( new InputStreamReader( url.openStream(), fileEncoding ), bufferSize )
+    }
+    def sourceName : String = url.toString
   }
 
   object FileDataFileSource {
