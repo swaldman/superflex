@@ -1197,7 +1197,7 @@ abstract class SuperFlexDbArchiver extends Splitter {
 	  numericOnly = false;
 	  integerOnly = false;
 	  if ( debugColumnInspection ) printf("[%s] Numeric types ruled out by datum '%s', which cannot be interpreted as a number.\n", colName, datum);
-	} else if ( numericOnly && datum.indexOf('-') > 0 && datum.toLowerCase().indexOf("e-") != 0) { //we have to deal with negatives from scientific notation... yes i should use parseDouble or NumberFormat...
+	} else if ( numericOnly && datum.indexOf('-') > 0 && datum.toLowerCase().indexOf("e-") < 0) { //we have to deal with negatives from scientific notation... yes i should use parseDouble or NumberFormat...
 	  numericOnly = false;
 	  integerOnly = false;
 	  if ( debugColumnInspection ) printf("[%s] Numeric types ruled out by datum '%s', which cannot be interpreted as a number because of an internal dash.\n", colName, datum);
