@@ -532,45 +532,7 @@ abstract class SuperFlexDbArchiver extends Splitter {
     if (shouldDrop) dropDeindexTable( csrc );
 
     executeCreateDdl( csrc );
-    ensureTableExists( csrc );
     insertFiles( csrc );
-  }
-
-  // because of transaction isolation, sometimes a created table
-  // appears not to exist if a Connection is acquired rapidly enough
-  // follwing its creation. So we test...
-
-  private def ensureTableExists( csrc : ConnectionSource ) : Unit = {
-    val unifiedTableInfo = _unifiedTableInfo.get; // assert that this has already been set up, call only after inferTableInfo()
-
-    val schemaName = unifiedTableInfo.tschema.getOrElse( null )
-    val tableName  = unifiedTableInfo.tname.get // assert that a table exists
-    ensureTableExists( csrc, schemaName, tableName )
-  }
-
-  private def ensureTableExists( csrc : ConnectionSource, maybeQualifiedName : String ) : Unit = {
-    val dotIndex = maybeQualifiedName.indexOf(".")
-    val ( schemaName, tableName ) = {
-      // we'll throw an Exception if dot is the last char, interpret empty string as schemaName (insist on no schema) if dot is the first char
-      if ( dotIndex >= 0 ) ( maybeQualifiedName.substring(0, dotIndex), maybeQualifiedName.substring( dotIndex + 1 ) ) else ( null, maybeQualifiedName )
-    }
-    ensureTableExists( csrc, schemaName, tableName )
-  }
-
-  // schemaName can be null!
-  private def ensureTableExists( csrc : ConnectionSource, schemaName : String, tableName : String ) : Unit = {
-    var seen = false
-    while (! seen) {
-      withConnection( csrc ) { con =>
-        val dbmd = con.getMetaData()
-        val rs = dbmd.getTables( null, schemaName, tableName, null )
-        try { seen = rs.next() } finally attemptClose( rs )
-      }
-      if (! seen) {
-        println("Newly created table not yet available. Waiting 100 msecs")
-        Thread.sleep( 100 )
-      }
-    }
   }
 
   def archiveFilesNoDups( csrc : ConnectionSource ) : Unit = archiveFilesNoDups( csrc, true );
@@ -596,7 +558,6 @@ abstract class SuperFlexDbArchiver extends Splitter {
 
     generateCreateDdl( false, tmpTableName );
     executeCreateDdl( csrc, tmpTableName );
-    ensureTableExists( csrc, tmpTableName )
     insertFiles( csrc, this.files, _filesInfo.get, concurrentInserts, tmpTableName ); 
 
     if ( shouldDrop ) dropDeindexTable(csrc);
