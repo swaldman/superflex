@@ -1181,6 +1181,29 @@ abstract class SuperFlexDbArchiver extends Splitter {
       (m != None && m.get.start == 0 && !datum.forall( _ == '0'))
     }
 
+    private def badPlusOrMinus( str : String ) : Boolean = {
+      if ( str.indexOf('+') < 0 && str.indexOf('-') < 0 ) { // no plus or minus
+        false
+      } else {
+        val indices = mutable.SortedSet.empty[Int]
+        var i = 0
+        val len = str.length
+        while (i < len) {
+          val c = str.charAt(i) 
+          if (  c == '+' || c == '-' ) indices += i
+          i += 1
+        }
+        def leading( index : Int ) = index == 0
+        def scientific( index : Int ) = str.toLowerCase.charAt( index - 1 ) == 'e'
+        def leadingOrScientific( index : Int ) = leading( index ) || scientific( index )
+        indices.size match {
+          case 1 => if (leadingOrScientific( indices.head )) false else true
+          case 2 => if ( leading( indices.head ) && scientific( indices.last ) ) false else true
+          case _ => true
+        }
+      }
+    }
+
     def update( datum : String ) : Unit = {
       if (datum == null || isNull(datum, colName)) //we can draw no inferences from nulls
 	return;
@@ -1192,15 +1215,15 @@ abstract class SuperFlexDbArchiver extends Splitter {
 	  numericOnly = false;
 	  integerOnly = false;
 	  if ( debugColumnInspection ) printf("[%s] Numeric types ruled out by empty string not interpreted as NULL\n", colName);
-	} else if ( (! datum.forall( "-0123456789.eE".contains( _ ) )) ||
+	} else if ( (! datum.forall( "+-0123456789.eE".contains( _ ) )) ||
           (! "0123456789.".contains(datum.last)) ) { //we accept the letter E for representations in scientific notation
 	  numericOnly = false;
 	  integerOnly = false;
 	  if ( debugColumnInspection ) printf("[%s] Numeric types ruled out by datum '%s', which cannot be interpreted as a number.\n", colName, datum);
-	} else if ( numericOnly && datum.indexOf('-') > 0 && datum.toLowerCase().indexOf("e-") < 0) { //we have to deal with negatives from scientific notation... yes i should use parseDouble or NumberFormat...
+	} else if ( numericOnly && badPlusOrMinus(datum) ) { //we have to deal with negatives from scientific notation... yes i should use parseDouble or NumberFormat...
 	  numericOnly = false;
 	  integerOnly = false;
-	  if ( debugColumnInspection ) printf("[%s] Numeric types ruled out by datum '%s', which cannot be interpreted as a number because of an internal dash.\n", colName, datum);
+	  if ( debugColumnInspection ) printf("[%s] Numeric types ruled out by datum '%s', which cannot be interpreted as a number because of an internal, not-scientific-notation plus or minus.\n", colName, datum);
 	} else if( leadingZerosNonNumeric && numericOnly && hasLeadingZeros( datum ) ) {
 	  numericOnly = false;
 	  integerOnly = false;
