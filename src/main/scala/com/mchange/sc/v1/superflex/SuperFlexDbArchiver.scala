@@ -814,6 +814,8 @@ abstract class SuperFlexDbArchiver extends Splitter {
   private def insertFile( con : Connection, f : NamedDataFileSource, filesInfo : FilesInfo, maybeQualifiedTableName : String ) : Unit = {
     //printf( "insertFile -- %s\n", f.sourceName );
 
+    if (batchFileInserts) con.setAutoCommit(false)
+
     // effectively assets that member variables have been set...
     val unifiedTableInfo = _unifiedTableInfo.get;
     val unifiedNamesToColInfos = _unifiedNamesToColInfos.get;
@@ -887,6 +889,7 @@ abstract class SuperFlexDbArchiver extends Splitter {
 	    if (batchCount == maxBatchSize) {
 	      printf("%s: batch size limit %d reached. executing, then resetting.\n", f.sourceName, batchCount);
 	      ps.executeBatch();
+              con.commit()
 	      batchCount = 0;
 	      printf("%s: executed batch and reset batch size count.\n", f.sourceName);
 	    }
@@ -901,11 +904,18 @@ abstract class SuperFlexDbArchiver extends Splitter {
 	  
 	line = readDataLine( br );
       }
-      if (batchFileInserts) ps.executeBatch();
+      if (batchFileInserts) {
+        ps.executeBatch();
+        con.commit()
+      }
 
       printf("%s: Skipped %d lines. Expected to skip %d lines.\n", f.sourceName, skipped, myFkdLineKeeper.fkdLines.length);
     } catch { 
-      case e : SQLException => { printThrowable(e); throw e; } 
+      case t : Throwable => {
+        if (batchFileInserts) con.rollback()
+        printThrowable(t);
+        throw t;
+      }
     } finally { 
       attemptClose( ps, br ); 
     }
