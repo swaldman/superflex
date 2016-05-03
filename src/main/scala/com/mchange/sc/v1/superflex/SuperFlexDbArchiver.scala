@@ -896,7 +896,7 @@ abstract class SuperFlexDbArchiver extends Splitter {
 	      ps.executeBatch();
               con.commit()
 	      batchCount = 0;
-	      printf("${f.sourceName}: executed batch and reset batch size count.");
+	      FINE.log(s"${f.sourceName}: executed batch and reset batch size count.");
 	    }
 	  } else {
 	    ps.executeUpdate();
