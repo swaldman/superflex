@@ -47,9 +47,13 @@ import scala.collection.mutable.ArrayBuffer;
 import com.mchange.sc.v1.util.ClosableUtils._;
 import com.mchange.sc.v1.sql.ResourceUtils._;
 
+import com.mchange.sc.v1.log.MLevel._
+
 import scala.language.reflectiveCalls;
 
 object SuperFlexDbArchiver {
+  implicit val logger = mlogger( this )
+
   val dfltDateFormatPatterns = Array("yyyy-MM-dd", "yyyyMMdd", "MMddyyyy", "dd-MMM-yyyy", "dd-MMM-yy", "MM/dd/yy", "MM/dd/yyyy", "ddMMMyyyy");
   val dfltDateTimeFormatPatternAddenda = Array("'T'HH:mm:ss"," HH:mm:ss z");
   val dfltDateTimeFormatPatterns = for (p <- dfltDateFormatPatterns; sfx <- dfltDateTimeFormatPatternAddenda) yield (p + sfx);
@@ -180,7 +184,7 @@ object SuperFlexDbArchiver {
 
     override def apply( ps : PreparedStatement, i : Int, s : String) : Unit = {
       try {  ps.setDate(i, new java.sql.Date( df.parse( s ).getTime() ) ) }
-      catch{ case t : Throwable => printf("Pattern %s, Bad datum %s\n", pattern, s); throw t; }
+      catch{ case t : Throwable => WARNING.log( s"Pattern '${pattern}', Bad datum '${s}'"); throw t; }
     }
 
     def copy : DateSetter = new DateSetter( pattern );
@@ -191,7 +195,7 @@ object SuperFlexDbArchiver {
 
     override def apply( ps : PreparedStatement, i : Int, s : String) : Unit = {
       try {  ps.setTimestamp(i, new java.sql.Timestamp( df.parse( s ).getTime() ) ) }
-      catch{ case t : Throwable => printf("Pattern %s, Bad datum %s\n", pattern, s); throw t; }
+      catch{ case t : Throwable => WARNING.log(s"Pattern '${pattern}', Bad datum '${s}'"); throw t; }
     }
 
     override def equals( other : Any ) : Boolean = other match {
@@ -482,7 +486,7 @@ abstract class SuperFlexDbArchiver extends Splitter {
       };
       Some( immutable.Map( (pairs ++ synthPairs) : _* ) );
     } else {
-      printf("Uh oh... length of colNames and labels lists don't match. Reporting no labels.\n");
+      WARNING.log("Uh oh... length of colNames and labels lists don't match. Reporting no labels.");
       None;
     }
   }
@@ -550,7 +554,7 @@ abstract class SuperFlexDbArchiver extends Splitter {
 	unifiedTableInfo.tschema.get + '.' + tmpTablePfx + unifiedTableInfo.tname.get;
       }
     }
-    printf("tmpTableName: %s\n", tmpTableName);
+    FINE.log( s"tmpTableName: ${tmpTableName}" );
 
     // if for some reason there is an old shadow of the tempory table,
     // drop it
@@ -573,7 +577,7 @@ abstract class SuperFlexDbArchiver extends Splitter {
       stmt.executeUpdate("DROP TABLE %s".format(tmpTableName));
       if ( imposePkConstraint )	{
 	if ( _pkConstraint != None) stmt.executeUpdate("ALTER TABLE %s ADD %s".format( maybeQualifiedTableName, _pkConstraint.get ));
-	else println("Could not impose PRIMARY KEY constraint on generated table. No PRIMARY KEY columns specified.");
+	else WARNING.log("Could not impose PRIMARY KEY constraint on generated table. No PRIMARY KEY columns specified.");
       }
     } finally { 
       attemptClose( stmt, con ); 
@@ -718,9 +722,9 @@ abstract class SuperFlexDbArchiver extends Splitter {
 	this._unifiedTableInfo = Some( priorTableInfo.reconcileOver( TableInfo( None, None, Some(synthCols), None ) ) );
       }
 	
-      printf("priorTableInfo: %s\n", priorTableInfo);
+      FINE.log(s"priorTableInfo: ${priorTableInfo}");
 
-      printf("set table info: %s\n", this._unifiedTableInfo);
+      FINE.log(s"set table info: ${this._unifiedTableInfo}");
 
       learnFromUnifiedTableInfo();
       this._fkdLineKeepers = Some( createEmptyFkdLineKeepers() );
@@ -787,14 +791,14 @@ abstract class SuperFlexDbArchiver extends Splitter {
       // 	  drop( stmt );
       // 	}
 
-      printf("Creating table '%s'.\n", maybeQualifiedTableName);
-      println( createDdl );
+      INFO.log(s"Creating table '${maybeQualifiedTableName}'.");
+      INFO.log( createDdl );
 
       stmt.executeUpdate( createDdl );
 
       afterTableCreate( con );
 
-      println("CREATE was executed without exceptions.");
+      INFO.log("CREATE was executed without exceptions.");
     } finally { 
       attemptClose( stmt, con ); 
     }
@@ -812,6 +816,7 @@ abstract class SuperFlexDbArchiver extends Splitter {
   }
 
   private def insertFile( con : Connection, f : NamedDataFileSource, filesInfo : FilesInfo, maybeQualifiedTableName : String ) : Unit = {
+    FINE.log(s"Populating '${maybeQualifiedTableName}' with data from ${f.sourceName}.")
     //printf( "insertFile -- %s\n", f.sourceName );
 
     if (batchFileInserts) con.setAutoCommit(false)
@@ -875,7 +880,7 @@ abstract class SuperFlexDbArchiver extends Splitter {
 		setters(i).get.apply(ps, i + 1, data(i)); // XXX: should guard this get, ps slots are indexed by 1, arrays are indexed by zero
 	      } catch {
 		case e : Exception => {
-		  printf("BAD VALUE: COLUMN %d of\n%s\n",i+1,line);
+		  WARNING.log(s"BAD VALUE: COLUMN ${i+1} of\n${line}");
 		  throw e;
 		}
 	      }
@@ -887,11 +892,11 @@ abstract class SuperFlexDbArchiver extends Splitter {
 	    ps.addBatch();
 	    batchCount += 1;
 	    if (batchCount == maxBatchSize) {
-	      printf("%s: batch size limit %d reached. executing, then resetting.\n", f.sourceName, batchCount);
+	      FINE.log(s"${f.sourceName}: batch size limit ${batchCount} reached. executing, then resetting.");
 	      ps.executeBatch();
               con.commit()
 	      batchCount = 0;
-	      printf("%s: executed batch and reset batch size count.\n", f.sourceName);
+	      printf("${f.sourceName}: executed batch and reset batch size count.");
 	    }
 	  } else {
 	    ps.executeUpdate();
@@ -899,7 +904,7 @@ abstract class SuperFlexDbArchiver extends Splitter {
           }
 	} else {
 	  skipped += 1;
-	  printf("%s: Skipped bad line: %s\n", f.sourceName, line );
+	  WARNING.log(s"${f.sourceName}: Skipped bad line: ${line}");
 	}
 	  
 	line = readDataLine( br );
@@ -909,7 +914,9 @@ abstract class SuperFlexDbArchiver extends Splitter {
         con.commit()
       }
 
-      printf("%s: Skipped %d lines. Expected to skip %d lines.\n", f.sourceName, skipped, myFkdLineKeeper.fkdLines.length);
+      if ( skipped > 0 ) {
+        WARNING.log( s"${f.sourceName}: Skipped ${skipped} lines. Expected to skip ${myFkdLineKeeper.fkdLines.length} lines.");
+      }
     } catch { 
       case t : Throwable => {
         if (batchFileInserts) con.rollback()
@@ -982,7 +989,7 @@ abstract class SuperFlexDbArchiver extends Splitter {
     // since synthetic file cols are set up in filesInfo, they will be passed to doInferFile
     def doInferFile( f : NamedDataFileSource, colNames : Array[String] )  : (NamedDataFileSource, Seq[ExaminedColumn], FkdLineKeeper) = {
       var numCols : Int = colNames.length;
-      printf("Examining %s, which has %d columns.\n", f.sourceName, numCols);
+      INFO.log(s"Examining ${f.sourceName}, which has ${numCols} columns.");
       val br = f.createBufferedReader( bufferSize, fileEncoding );
       readMetaData( br ); //skip preliminaries
       try {
@@ -1036,7 +1043,7 @@ abstract class SuperFlexDbArchiver extends Splitter {
 	assert( ("TIMESTAMP"::"DATE"::"INTEGER"::"BIGINT"::"DOUBLE PRECISION"::"BOOLEAN"::Nil).contains( out._1 ) || out._1.indexOf("CHAR") >= 0,
 	        "Forced column types must be one of 'TIMESTAMP', 'DATE', 'INTEGER', 'BIGINT', 'DOUBLE PRECISION', 'BOOLEAN', or something containg 'CHAR'" );
 
-	if (debugColumnInspection) printf("[%s] Column type '%s' was forced by a subclass override.", colName, out._1 );
+	if (debugColumnInspection) FINE.log(s"[${colName}] Column type '${out._1}' was forced by a subclass override.");
 
 	out
       }	else if (maxLength < 1) { // all null
@@ -1142,13 +1149,13 @@ abstract class SuperFlexDbArchiver extends Splitter {
 	}
 
 	if ( debugColumnInspection ) {
-	  if (! out) printf("[%s] Pattern %s ruled out by datum '%s'\n", colName, df.toPattern, maybeDate);
+	  if (! out) FINE.log(s"[${colName}] Pattern ${df.toPattern} ruled out by datum '${maybeDate}'");
         }
 
 	if ( out && extraValidator != null ) {
 	  out = extraValidator( maybeDate, df.toPattern );
 
-	  if ( debugColumnInspection && !out) printf("[%s] Datum %s conforms to pattern %s, but is ruled out extra validator.\n", colName, maybeDate, df.toPattern);
+	  if ( debugColumnInspection && !out) FINE.log(s"[${colName}] Datum ${maybeDate} conforms to pattern ${df.toPattern}, but is ruled out extra validator.");
 	}
 	out;
       }
@@ -1156,7 +1163,7 @@ abstract class SuperFlexDbArchiver extends Splitter {
       inPlay.dequeueAll( ! check( maybeDate, _ ) );
       anyHope = !inPlay.isEmpty;
 
-      if (!anyHope && debugColumnInspection) printf("[%s] now hopeless in %s.\n", colName, this);
+      if (!anyHope && debugColumnInspection) FINE.log(s"[${colName}] now hopeless in ${this}.");
     }
 
     def guess = { inPlay.front; }
@@ -1224,25 +1231,25 @@ abstract class SuperFlexDbArchiver extends Splitter {
 	if (datum.length == 0) { //we interpret this case as empty string, since we know it isn't interpreted as null
 	  numericOnly = false;
 	  integerOnly = false;
-	  if ( debugColumnInspection ) printf("[%s] Numeric types ruled out by empty string not interpreted as NULL\n", colName);
+	  if ( debugColumnInspection ) FINE.log(s"[${colName}] Numeric types ruled out by empty string not interpreted as NULL");
 	} else if ( (! datum.forall( "+-0123456789.eE".contains( _ ) )) ||
           (! "0123456789.".contains(datum.last)) ) { //we accept the letter E for representations in scientific notation
 	  numericOnly = false;
 	  integerOnly = false;
-	  if ( debugColumnInspection ) printf("[%s] Numeric types ruled out by datum '%s', which cannot be interpreted as a number.\n", colName, datum);
+	  if ( debugColumnInspection ) FINE.log(s"[${colName}] Numeric types ruled out by datum '${datum}', which cannot be interpreted as a number.");
 	} else if ( numericOnly && badPlusOrMinus(datum) ) { //we have to deal with negatives from scientific notation... yes i should use parseDouble or NumberFormat...
 	  numericOnly = false;
 	  integerOnly = false;
-	  if ( debugColumnInspection ) printf("[%s] Numeric types ruled out by datum '%s', which cannot be interpreted as a number because of an internal, not-scientific-notation plus or minus.\n", colName, datum);
+	  if ( debugColumnInspection ) FINE.log(s"[${colName}] Numeric types ruled out by datum '${datum}', which cannot be interpreted as a number because of an internal, not-scientific-notation plus or minus.");
 	} else if( leadingZerosNonNumeric && numericOnly && hasLeadingZeros( datum ) ) {
 	  numericOnly = false;
 	  integerOnly = false;
 	  if ( debugColumnInspection ){
-            printf("[%s] Numeric types ruled out by datum '%s', since config param 'leadingZerosNonNumeric' is true, and the datum contains leading zeros.\n", colName, datum);
+            FINE.log("[${colName}] Numeric types ruled out by datum '${datum}', since config param 'leadingZerosNonNumeric' is true, and the datum contains leading zeros.");
           }
 	} else if ( integerOnly && (datum.contains('.') || datum.contains('e') || datum.contains('E') ) ) {
 	  integerOnly = false;
-	  if ( debugColumnInspection ) printf("[%s] Integral types ruled out by datum '%s', which contains a '.'\n", colName, datum);
+	  if ( debugColumnInspection ) FINE.log("[${colName}] Integral types ruled out by datum '${datum}', which contains a '.'");
 	}
       }
 
@@ -1251,14 +1258,14 @@ abstract class SuperFlexDbArchiver extends Splitter {
 	  val newFixedLength = if (datum.length == fixedLength) { datum.length } else { -2 }; //a variation, -2 means not fixed
 
 	  if ( debugColumnInspection && newFixedLength == -2) {
-	    printf("[%s] Puative fixed length of %d invalidated by '%s' of length %d.\n", colName, fixedLength, datum, datum.length);
+	    FINE.log(s"[${colName}] Putative fixed length of ${fixedLength} invalidated by '${datum}' of length ${datum.length}");
           }
 
 	  fixedLength = newFixedLength;
 	} else {
 	  fixedLength = datum.length;
 
-	  if ( debugColumnInspection ) printf("[%s] Putative fixed length of %d set by first non-null value, '%s'.\n", colName, fixedLength, datum);
+	  if ( debugColumnInspection ) FINE.log(s"[${colName}] Putative fixed length of ${fixedLength} set by first non-null value, '${datum}'.");
 	}
       }
 
