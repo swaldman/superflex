@@ -10,7 +10,7 @@ object SuperFlexBuild extends Build {
     Keys.organization := "com.mchange",
     Keys.name := "superflex", 
     Keys.version := "0.2.1-SNAPSHOT", 
-    Keys.scalaVersion := "2.11.7",
+    Keys.scalaVersion := "2.11.8",
     Keys.publishTo <<= Keys.version { 
       (v: String) => {
 	if (v.trim.endsWith("SNAPSHOT"))
@@ -26,6 +26,7 @@ object SuperFlexBuild extends Build {
 
   val dependencies = Seq(
     "com.mchange" %% "mchange-commons-scala" % "0.4.1-SNAPSHOT" changing(),
+    "com.mchange" %% "mlog-scala"            % "0.3.8-SNAPSHOT" changing(),
     "org.scala-lang.modules" %% "scala-xml" % "1.0.5"
   );
 
