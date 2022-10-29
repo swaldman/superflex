@@ -44,6 +44,11 @@ final case class TableInfo(val tschema    : Option[String],
 			   val cols       : Option[Iterable[ColumnInfo]],
 			   val pkNames    : Option[List[String]]) extends Reconcilable[TableInfo]
 {
+  val tableFullName : Option[String] = {
+    val schemaPfx = tschema.map( _ + "." ).getOrElse("")
+    tname.map( schemaPfx + _ )
+  }
+
   val colsByName : Option[Map[String, ColumnInfo]] = 
     {
       if ( cols == None )

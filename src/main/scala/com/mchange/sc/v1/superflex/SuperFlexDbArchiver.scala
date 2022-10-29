@@ -77,6 +77,10 @@ object SuperFlexDbArchiver {
 
   type MetaData = Map[String,List[String]];
 
+  sealed trait DbmsDialect;
+  case object Dolt     extends DbmsDialect;
+  case object Postgres extends DbmsDialect;
+
   trait NamedDataFileSource {
     def createBufferedReader( bufferSize : Int, fileEncoding : String ) : BufferedReader;
     def sourceName : String;
@@ -85,8 +89,8 @@ object SuperFlexDbArchiver {
     override def hashCode() : Int;
 
     final def forMultilineCsv : CsvDataFileSource = this match {
-      case ready : CsvDataFileSource => ready
-      case unready                   => CsvDataFileSource( unready )
+      case ready   : CsvDataFileSource => ready
+      case unready                     => CsvDataFileSource( unready )
     }
   }
 
@@ -132,7 +136,7 @@ object SuperFlexDbArchiver {
     }
   }
 
-  def asBoolean( maybeBoolean : String) : Option[Boolean] = {
+  def asBoolean( maybeBoolean : String ) : Option[Boolean] = {
     val chk = maybeBoolean.toLowerCase;
     if ( trueStrings.contains( chk ) ) Some(true);
     else if ( falseStrings.contains( chk ) ) Some(false);
@@ -298,8 +302,7 @@ abstract class SuperFlexDbArchiver extends Splitter {
 
   protected val mustInfer  : Boolean = true;
 
-
-
+  protected val dbmsDialect : DbmsDialect = Postgres;
 
   protected def transformColName( colName : String ) : String = colName;
 
@@ -448,6 +451,8 @@ abstract class SuperFlexDbArchiver extends Splitter {
     val allColumnNames       : SortedSet[String]                                          = immutable.TreeSet.empty(sort) ++ cnames;
     val colNamesByFile       : Map[NamedDataFileSource, Array[String]]                    = immutable.HashMap.empty ++ cnbf;
     val fileColsByColumnName : SortedMap[String, Iterable[ (NamedDataFileSource, Int) ] ] = immutable.TreeMap.empty(sort) ++ fcbcn;
+
+    FINER.log(s"""New FilesInfo files: ${this.colNamesByFile.keys.map( _.sourceName ).mkString(", ")}""")
   }
 
   /**
@@ -573,11 +578,32 @@ abstract class SuperFlexDbArchiver extends Splitter {
       con = csrc.getConnection();
       stmt = con.createStatement();
 
-      stmt.executeUpdate("CREATE TABLE %s AS ( SELECT DISTINCT * FROM %s )".format(maybeQualifiedTableName, tmpTableName));
+      dbmsDialect match {
+        case Dolt => {
+          val tmpViewTableName = {
+            if (unifiedTableInfo.tschema == None ) {
+	      tmpTablePfx + "view_" + maybeQualifiedTableName; //schema-less case
+            } else {
+	      unifiedTableInfo.tschema.get + '.' + tmpTablePfx + "view_" + unifiedTableInfo.tname.get;
+            }
+          }
+          stmt.executeUpdate("CREATE VIEW %s AS SELECT DISTINCT * FROM %s".format(tmpViewTableName, tmpTableName));
+          stmt.executeUpdate("CREATE TABLE %s AS SELECT * FROM %s".format(maybeQualifiedTableName, tmpViewTableName));
+          stmt.executeUpdate("DROP VIEW %s".format(tmpViewTableName))
+        }
+        case _ => {
+          stmt.executeUpdate("CREATE TABLE %s AS ( SELECT DISTINCT * FROM %s )".format(maybeQualifiedTableName, tmpTableName));
+        }
+      }
       stmt.executeUpdate("DROP TABLE %s".format(tmpTableName));
       if ( imposePkConstraint )	{
-	if ( _pkConstraint != None) stmt.executeUpdate("ALTER TABLE %s ADD %s".format( maybeQualifiedTableName, _pkConstraint.get ));
-	else WARNING.log("Could not impose PRIMARY KEY constraint on generated table. No PRIMARY KEY columns specified.");
+	if ( _pkConstraint != None) {
+          FINE.log( s"Imposing primary key constraint on '${maybeQualifiedTableName}': ${_pkConstraint.get}" )
+          stmt.executeUpdate("ALTER TABLE %s ADD %s".format( maybeQualifiedTableName, _pkConstraint.get ));
+        }
+	else {
+          WARNING.log("Could not impose PRIMARY KEY constraint on generated table. No PRIMARY KEY columns specified.");
+        }
       }
     } finally { 
       attemptClose( stmt, con ); 
@@ -683,7 +709,11 @@ abstract class SuperFlexDbArchiver extends Splitter {
       //val unifiedTableInfo = TableInfo( priorTableInfo.tschema, priorTableInfo.tname, Some( allColSeq ), priorTableInfo.pkNames );
       this._unifiedTableInfo = Some( unifiedTableInfo );
 
-      //printf("unifiedTableInfo: %s\n", unifiedTableInfo);
+      FINE.log("unifiedTableInfo: " + unifiedTableInfo);
+
+      // we should have inferred any columns by now, so get should succeed
+      if (unifiedTableInfo.cols.get.isEmpty)
+        throw new UndefinedTableException( s"No columns found for table '${unifiedTableInfo.tname.get}'." )
 
       learnFromUnifiedTableInfo();
 
@@ -755,6 +785,8 @@ abstract class SuperFlexDbArchiver extends Splitter {
       if (rawPkColNames != None && rawPkColNames.get != Nil) {
 	val pkConstraint = "PRIMARY KEY( " + rawPkColNames.get.map( transformQuoteColName _ ).mkString(", ") + " )";
 	this._pkConstraint = Some( pkConstraint );
+
+        FINE.log( s"_pkConstraint: ${this._pkConstraint}" )
 
 	if (includePkConstraint) {
 	  noPkDecls:::pkConstraint::Nil;
@@ -1245,7 +1277,7 @@ abstract class SuperFlexDbArchiver extends Splitter {
 	  numericOnly = false;
 	  integerOnly = false;
 	  if ( debugColumnInspection ){
-            FINE.log("[${colName}] Numeric types ruled out by datum '${datum}', since config param 'leadingZerosNonNumeric' is true, and the datum contains leading zeros.");
+            FINE.log("s[${colName}] Numeric types ruled out by datum '${datum}', since config param 'leadingZerosNonNumeric' is true, and the datum contains leading zeros.");
           }
 	} else if ( integerOnly && (datum.contains('.') || datum.contains('e') || datum.contains('E') ) ) {
 	  integerOnly = false;
