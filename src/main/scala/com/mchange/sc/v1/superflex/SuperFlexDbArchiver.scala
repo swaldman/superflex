@@ -452,7 +452,7 @@ abstract class SuperFlexDbArchiver extends Splitter {
     val colNamesByFile       : Map[NamedDataFileSource, Array[String]]                    = immutable.HashMap.empty ++ cnbf;
     val fileColsByColumnName : SortedMap[String, Iterable[ (NamedDataFileSource, Int) ] ] = immutable.TreeMap.empty(sort) ++ fcbcn;
 
-    FINER.log(s"""New FilesInfo files: ${this.colNamesByFile.keys.map( _.sourceName ).mkString(", ")}""")
+    // FINER.log(s"""New FilesInfo files: ${this.colNamesByFile.keys.map( _.sourceName ).mkString(", ")}""")
   }
 
   /**
