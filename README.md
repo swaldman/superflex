@@ -2,7 +2,7 @@
 
 You will find this library almost unusable, although I find I still use it all the time.
 
-It is a library for importing collections of textfiles into a (postgres) database table, "designed" to be extensible
+It is a library for importing collections of textfiles into a (usually postgres, now sometimes [dolt](https://www.dolthub.com/)) database table, "designed" to be extensible
 for almost any conceivable format of large datasets often split (horizontally or vertically) into multiple files.
 
 "Designed" goes in quotes. This was my very first significant Scala project, written in 2009 (built originally in Scala 2.7).

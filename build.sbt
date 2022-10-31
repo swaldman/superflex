@@ -1,5 +1,5 @@
 ThisBuild / organization := "com.mchange"
-ThisBuild / version      := "0.2.2-SNAPSHOT"
+ThisBuild / version      := "0.2.2"
 
 ThisBuild / resolvers += Resolver.sonatypeRepo("releases")
 ThisBuild / resolvers += Resolver.sonatypeRepo("snapshots")
@@ -32,7 +32,7 @@ def pomExtraForProjectName_LGPLv21( projectName : String ) = {
       </license>
     </licenses>
     <scm>
-      <url>git@github.com:swaldman/{projectName}.git</url>
+      <url>https://github.com/swaldman/{projectName}</url>
       <connection>scm:git:git@github.com:swaldman/{projectName}.git</connection>
     </scm>
     <developers>
